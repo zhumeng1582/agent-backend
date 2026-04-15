@@ -26,8 +26,10 @@ from app.schemas.ai import (
     AIProviderResponse,
     ImageGenerationRequest,
     ImageGenerationResponse,
-    TextToSpeechRequest,
-    TextToSpeechResponse,
+    TranslationRequest,
+    TranslationResponse,
+    TTSRequest,
+    TTSResponse,
 )
 
 __all__ = [
@@ -54,6 +56,8 @@ __all__ = [
     "AIProviderResponse",
     "ImageGenerationRequest",
     "ImageGenerationResponse",
-    "TextToSpeechRequest",
-    "TextToSpeechResponse",
+    "TranslationRequest",
+    "TranslationResponse",
+    "TTSRequest",
+    "TTSResponse",
 ]
