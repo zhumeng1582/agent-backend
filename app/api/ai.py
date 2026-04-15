@@ -1,5 +1,6 @@
 import json
 import base64
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import Response
@@ -27,6 +28,7 @@ from app.schemas.ai import (
 )
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
@@ -168,6 +170,7 @@ async def chat_in_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"[POST /ai/chat/{conversation_id}] user_id={current_user.id}, messages_count={len(request.messages)}")
     # Verify conversation belongs to user
     result = await db.execute(
         select(Conversation).where(
@@ -176,6 +179,7 @@ async def chat_in_conversation(
     )
     conversation = result.scalar_one_or_none()
     if not conversation:
+        logger.warning(f"[POST /ai/chat/{conversation_id}] Conversation not found for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
@@ -184,6 +188,7 @@ async def chat_in_conversation(
     # Get provider
     provider = await get_default_provider(db)
     if not provider:
+        logger.warning(f"[POST /ai/chat/{conversation_id}] No AI provider configured")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="No AI provider configured",

@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -19,6 +20,7 @@ from app.schemas.conversation import (
 )
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=List[ConversationListResponse])
@@ -32,6 +34,7 @@ async def get_conversations(
     - 如果提供 since 参数，只返回 updated_at > since 的会话（增量同步）
     - 如果不提供 since 参数，返回所有会话（全量同步）
     """
+    logger.info(f"[GET /conversations] user_id={current_user.id}, since={since}")
     query = select(Conversation).where(Conversation.user_id == current_user.id)
 
     if since:
@@ -65,6 +68,7 @@ async def create_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"[POST /conversations] user_id={current_user.id}, title={data.title}")
     conversation = Conversation(
         user_id=current_user.id,
         title=data.title,
@@ -72,6 +76,7 @@ async def create_conversation(
     db.add(conversation)
     await db.commit()
     await db.refresh(conversation)
+    logger.info(f"[POST /conversations] created conversation_id={conversation.id}")
     return conversation
 
 
@@ -81,6 +86,7 @@ async def get_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"[GET /conversations/{conversation_id}] user_id={current_user.id}")
     result = await db.execute(
         select(Conversation)
         .where(
@@ -92,6 +98,7 @@ async def get_conversation(
     conversation = result.scalar_one_or_none()
 
     if not conversation:
+        logger.warning(f"[GET /conversations/{conversation_id}] Not found for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
@@ -138,6 +145,7 @@ async def delete_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"[DELETE /conversations/{conversation_id}] user_id={current_user.id}")
     result = await db.execute(
         select(Conversation).where(
             Conversation.id == conversation_id, Conversation.user_id == current_user.id
@@ -146,6 +154,7 @@ async def delete_conversation(
     conversation = result.scalar_one_or_none()
 
     if not conversation:
+        logger.warning(f"[DELETE /conversations/{conversation_id}] Not found for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
