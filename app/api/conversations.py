@@ -245,6 +245,10 @@ async def create_message(
     conversation.last_message_preview = data.content[:100] if data.content else f"[媒体]"
     conversation.updated_at = datetime.utcnow()
 
+    # Update title from first message if still default
+    if conversation.title == "新聊天" and data.content:
+        conversation.title = data.content[:50] if len(data.content) > 50 else data.content
+
     await db.commit()
     await db.refresh(message)
     return message
