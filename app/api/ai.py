@@ -277,10 +277,20 @@ async def chat_in_conversation(
 
     logger.info(f"[POST /ai/chat/{conversation_id}] Raw response: {result}")
 
-    # Check if there's an error in the response
+    # Check if there's an error in the response (various formats)
     if result.get("error"):
         error_msg = result.get("message", "AI service error")
         logger.warning(f"[POST /ai/chat/{conversation_id}] AI API error: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=error_msg,
+        )
+
+    # Check base_resp for MiniMax error format
+    base_resp = result.get("base_resp", {})
+    if base_resp and base_resp.get("status_code") != 0:
+        error_msg = base_resp.get("status_msg", "AI service error")
+        logger.warning(f"[POST /ai/chat/{conversation_id}] AI base_resp error: {error_msg}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=error_msg,
@@ -314,10 +324,19 @@ async def chat_in_conversation(
             usage=usage,
         )
 
+    # Check if there's an error in base_resp even with status_code 1000 or missing
+    if base_resp and base_resp.get("status_msg") and "unknown error" not in base_resp.get("status_msg", "").lower():
+        error_msg = base_resp.get("status_msg")
+        logger.warning(f"[POST /ai/chat/{conversation_id}] AI error: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=error_msg,
+        )
+
     logger.warning(f"[POST /ai/chat/{conversation_id}] No choices in AI response, full response: {result}")
     raise HTTPException(
         status_code=status.HTTP_502_BAD_GATEWAY,
-        detail="Invalid response from AI provider",
+        detail="AI service returned empty response",
     )
 
 
