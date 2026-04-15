@@ -29,6 +29,9 @@ from app.schemas.user import (
     PhoneVerifyRequest,
     PhoneRegisterRequest,
     WechatLoginRequest,
+    PasswordForgotRequest,
+    PasswordResetRequest,
+    PasswordChangeRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -52,6 +55,22 @@ def store_sms_code(phone: str, code: str) -> None:
 def verify_sms_code(phone: str, code: str) -> bool:
     """Verify SMS code from Redis"""
     key = f"sms_code:{phone}"
+    stored_code = redis_client.get(key)
+    if stored_code and stored_code == code:
+        redis_client.delete(key)  # Code used, delete it
+        return True
+    return False
+
+
+def store_reset_code(identifier: str, code: str) -> None:
+    """Store password reset code in Redis with 10 min expiry"""
+    key = f"password_reset:{identifier}"
+    redis_client.setex(key, 600, code)  # 10 minutes expiry
+
+
+def verify_reset_code(identifier: str, code: str) -> bool:
+    """Verify password reset code from Redis"""
+    key = f"password_reset:{identifier}"
     stored_code = redis_client.get(key)
     if stored_code and stored_code == code:
         redis_client.delete(key)  # Code used, delete it
@@ -512,3 +531,124 @@ async def set_phone_password(
     await db.commit()
 
     return {"message": "Password set successfully"}
+
+
+@router.post("/password/forgot")
+async def forgot_password(
+    request: PasswordForgotRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Send password reset code via email or SMS"""
+    if not request.email and not request.phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email or phone is required",
+        )
+
+    # Find user by email or phone
+    user = None
+    identifier = None
+
+    if request.email:
+        result = await db.execute(select(User).where(User.email == request.email))
+        user = result.scalar_one_or_none()
+        identifier = request.email
+
+    if not user and request.phone:
+        result = await db.execute(select(User).where(User.phone == request.phone))
+        user = result.scalar_one_or_none()
+        identifier = request.phone
+
+    if not user:
+        # Don't reveal that user doesn't exist for security
+        return {"message": "If the account exists, a reset code has been sent"}
+
+    # Generate and store reset code
+    code = generate_sms_code()  # Reuse SMS code generator
+    store_reset_code(identifier, code)
+
+    # For email, we would send an actual email. For now, log it like SMS
+    if request.email:
+        print(f"[Password Reset] Code for {request.email}: {code}")
+        # TODO: Send actual email
+        return {"message": "If the account exists, a reset code has been sent"}
+
+    # For phone, same as SMS
+    print(f"[Password Reset] Code for {request.phone}: {code}")
+    return {"message": "If the account exists, a reset code has been sent"}
+
+
+@router.post("/password/reset")
+async def reset_password(
+    request: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset password with verification code"""
+    if not request.email and not request.phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email or phone is required",
+        )
+
+    identifier = request.email or request.phone
+
+    # Verify reset code
+    if not verify_reset_code(identifier, request.code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code",
+        )
+
+    # Find user
+    user = None
+    if request.email:
+        result = await db.execute(select(User).where(User.email == request.email))
+        user = result.scalar_one_or_none()
+
+    if not user and request.phone:
+        result = await db.execute(select(User).where(User.phone == request.phone))
+        user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Update password
+    user.hashed_password = get_password_hash(request.new_password)
+    user.phone_password_hash = get_password_hash(request.new_password)
+    await db.commit()
+
+    return {"message": "Password reset successfully"}
+
+
+@router.post("/password/change")
+async def change_password(
+    request: PasswordChangeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password for logged-in user"""
+    # Check if user has a password set
+    if not current_user.hashed_password and not current_user.phone_password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No password set for this account",
+        )
+
+    # Verify old password
+    old_password_hash = current_user.hashed_password or current_user.phone_password_hash
+    if not verify_password(request.old_password, old_password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+        )
+
+    # Update password
+    new_hash = get_password_hash(request.new_password)
+    current_user.hashed_password = new_hash
+    current_user.phone_password_hash = new_hash
+    await db.commit()
+
+    return {"message": "Password changed successfully"}

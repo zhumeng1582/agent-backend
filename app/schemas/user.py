@@ -66,3 +66,20 @@ class PhoneRegisterRequest(BaseModel):
 
 class WechatLoginRequest(BaseModel):
     code: str  # WeChat OAuth2 authorization code
+
+
+class PasswordForgotRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+
+
+class PasswordResetRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    code: str
+    new_password: str
+
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
