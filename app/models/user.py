@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 from app.core.database import Base
@@ -64,4 +64,21 @@ class SMSCode(Base):
     expires_at = Column(DateTime, nullable=False)
     used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UserUsage(Base):
+    __tablename__ = "user_usage"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, default=datetime.utcnow)  # Date of the usage
+    chat_count = Column(Integer, default=0)  # Number of AI chats today
+    tokens_used = Column(Integer, default=0)  # Total tokens used today
+
+    user = relationship("User")
+
+    @staticmethod
+    def get_today_start():
+        now = datetime.utcnow()
+        return datetime(now.year, now.month, now.day)
 

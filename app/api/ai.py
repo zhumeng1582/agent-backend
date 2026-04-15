@@ -11,7 +11,7 @@ import httpx
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.config import get_settings
-from app.models.user import User
+from app.models.user import User, UserUsage
 from app.models.conversation import Conversation, Message
 from app.models.ai_provider import AIProvider
 from app.schemas.ai import (
@@ -113,6 +113,45 @@ async def call_openai_api(messages: List[dict], model: str, api_key: str) -> dic
     except Exception as e:
         logger.error(f"[call_openai_api] Exception: {type(e).__name__}: {e}")
         raise
+
+
+async def _update_usage(db: AsyncSession, user_id: str, usage: dict):
+    """Update user usage stats after AI chat"""
+    try:
+        from datetime import datetime
+        from sqlalchemy import and_
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        result = await db.execute(
+            select(UserUsage).where(
+                and_(
+                    UserUsage.user_id == user_id,
+                    UserUsage.date >= today_start,
+                )
+            )
+        )
+        user_usage = result.scalar_one_or_none()
+
+        # Extract tokens from usage dict
+        prompt_tokens = usage.get("prompt_tokens", 0) if usage else 0
+        completion_tokens = usage.get("completion_tokens", 0) if usage else 0
+        total_tokens = usage.get("total_tokens", 0) if usage else 0
+
+        if not user_usage:
+            user_usage = UserUsage(
+                user_id=user_id,
+                date=today_start,
+                chat_count=1,
+                tokens_used=total_tokens,
+            )
+            db.add(user_usage)
+        else:
+            user_usage.chat_count += 1
+            user_usage.tokens_used += total_tokens
+
+        logger.info(f"[_update_usage] user_id={user_id}, chat_count={user_usage.chat_count}, tokens={user_usage.tokens_used}")
+    except Exception as e:
+        logger.error(f"[_update_usage] Failed to update usage: {e}")
 
 
 @router.get("/providers", response_model=List[AIProviderResponse])
@@ -315,6 +354,10 @@ async def chat_in_conversation(
             is_from_me=False,
         )
         db.add(ai_message)
+
+        # Update usage stats
+        await _update_usage(db, current_user.id, usage)
+
         await db.commit()
 
         return ChatResponse(
