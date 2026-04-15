@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     s3_bucket: str = "agent-media"
     s3_public_url: str = "http://localhost:9000/agent-media"
 
+    # AI Providers (from .env)
+    minimax_api_key: str = ""
+    minimax_base_url: str = "https://api.minimaxi.com/v1"
+    minimax_model: str = "abab6.5s-chat"
+
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4"
+
     class Config:
         env_file = ".env"
         extra = "allow"

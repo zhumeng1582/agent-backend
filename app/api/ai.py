@@ -204,20 +204,39 @@ async def chat_in_conversation(
         db.add(conversation)
         await db.flush()
 
-    # Get provider
+    # Get provider from database, fallback to settings
     provider = await get_default_provider(db)
-    if not provider:
+
+    # Determine which API to use
+    api_key = None
+    api_base_url = None
+    api_model = None
+    api_type = None
+
+    if provider:
+        api_key = decrypt_api_key(provider.api_key_encrypted) if provider.api_key_encrypted else None
+        api_base_url = provider.base_url
+        api_model = provider.model_name
+        api_type = provider.provider_type
+    elif settings.minimax_api_key:
+        # Fallback to .env config
+        api_key = settings.minimax_api_key
+        api_base_url = settings.minimax_base_url
+        api_model = settings.minimax_model
+        api_type = "minimax"
+        logger.info(f"[POST /ai/chat/{conversation_id}] Using MiniMax from settings")
+    elif settings.openai_api_key:
+        api_key = settings.openai_api_key
+        api_base_url = None
+        api_model = settings.openai_model
+        api_type = "openai"
+        logger.info(f"[POST /ai/chat/{conversation_id}] Using OpenAI from settings")
+
+    if not api_key:
         logger.warning(f"[POST /ai/chat/{conversation_id}] No AI provider configured")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No AI provider configured",
-        )
-
-    api_key = decrypt_api_key(provider.api_key_encrypted) if provider.api_key_encrypted else None
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI provider not properly configured",
+            detail="No AI provider configured. Please set MINIMAX_API_KEY or OPENAI_API_KEY in .env",
         )
 
     # Build messages with history
@@ -238,18 +257,18 @@ async def chat_in_conversation(
     for new_msg in request.messages:
         messages.append(new_msg.model_dump())
 
-    logger.info(f"[POST /ai/chat/{conversation_id}] Calling {provider.provider_type} provider with {len(messages)} messages")
+    logger.info(f"[POST /ai/chat/{conversation_id}] Calling {api_type} provider with {len(messages)} messages, model={api_model}")
     logger.debug(f"[POST /ai/chat/{conversation_id}] Messages: {messages}")
 
     # Call provider
-    if provider.provider_type == "minimax":
-        result = await call_minimax_api(messages, request.model or provider.model_name, api_key, provider.base_url)
-    elif provider.provider_type == "openai":
-        result = await call_openai_api(messages, request.model or provider.model_name, api_key)
+    if api_type == "minimax":
+        result = await call_minimax_api(messages, request.model or api_model, api_key, api_base_url)
+    elif api_type == "openai":
+        result = await call_openai_api(messages, request.model or api_model, api_key)
     else:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=f"Provider type {provider.provider_type} not supported",
+            detail=f"Provider type {api_type} not supported",
         )
 
     logger.info(f"[POST /ai/chat/{conversation_id}] Raw response: {result}")
@@ -278,7 +297,7 @@ async def chat_in_conversation(
         return ChatResponse(
             content=content,
             reasoning=reasoning,
-            model=request.model or provider.model_name,
+            model=request.model or api_model,
             usage=usage,
         )
 
