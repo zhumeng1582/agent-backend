@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     secret_key: str = "your-super-secret-key-change-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
-    refresh_token_expire_days: int = 7
+    refresh_token_expire_days: int = 30
 
     # Encryption (for API keys)
     encryption_key: str = "32-byte-encryption-key-here!!"  # Must be 32 bytes
