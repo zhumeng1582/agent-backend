@@ -358,6 +358,27 @@ async def chat_in_conversation(
         # Update usage stats
         await _update_usage(db, current_user.id, usage)
 
+        # Generate title if still default "新聊天"
+        if conversation.title == "新聊天" and messages:
+            title_messages = [
+                {"role": "system", "content": "You are a title generator. Generate a short title (max 20 characters) for this conversation based on the user's messages. Only output the title, nothing else."},
+                {"role": "user", "content": f"Generate a title for this conversation. User's first message: {messages[0].get('content', '')[:200]}"}
+            ]
+            try:
+                title_result = None
+                if api_type == "minimax":
+                    title_result = await call_minimax_api(title_messages, api_model, api_key, api_base_url)
+                elif api_type == "openai":
+                    title_result = await call_openai_api(title_messages, api_model, api_key)
+
+                if title_result and title_result.get("choices"):
+                    generated_title = title_result["choices"][0]["message"]["content"].strip()
+                    if generated_title:
+                        conversation.title = generated_title[:20]
+                        logger.info(f"[POST /ai/chat/{conversation_id}] Generated title: {conversation.title}")
+            except Exception as e:
+                logger.warning(f"[POST /ai/chat/{conversation_id}] Failed to generate title: {e}")
+
         await db.commit()
 
         return ChatResponse(
