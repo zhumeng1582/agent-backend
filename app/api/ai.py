@@ -73,10 +73,14 @@ async def call_minimax_api(messages: List[dict], model: str, api_key: str, base_
             logger.info(f"[call_minimax_api] Response status: {response.status_code}")
             if response.status_code != 200:
                 logger.error(f"[call_minimax_api] Error response: {response.text}")
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"AI API error: {response.text}",
-                )
+                # Return error response for caller to parse
+                try:
+                    error_data = response.json()
+                    # Extract error message for client
+                    error_msg = error_data.get("error", {}).get("message", response.text)
+                    return {"error": True, "status_code": response.status_code, "message": error_msg, "raw": error_data}
+                except:
+                    return {"error": True, "status_code": response.status_code, "message": response.text}
             return response.json()
     except Exception as e:
         logger.error(f"[call_minimax_api] Exception: {type(e).__name__}: {e}")
@@ -272,6 +276,15 @@ async def chat_in_conversation(
         )
 
     logger.info(f"[POST /ai/chat/{conversation_id}] Raw response: {result}")
+
+    # Check if there's an error in the response
+    if result.get("error"):
+        error_msg = result.get("message", "AI service error")
+        logger.warning(f"[POST /ai/chat/{conversation_id}] AI API error: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=error_msg,
+        )
 
     # Parse response
     choices = result.get("choices", [])
