@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     # AI Providers (from .env)
     minimax_api_key: str = ""
     minimax_base_url: str = "https://api.minimaxi.com/v1"
-    minimax_model: str = "abab6.5s-chat"
+    minimax_model: str = "MiniMax-M2.7"
+    minimax_tts_model: str = "speech-2.8-hd"
+    minimax_image_model: str = "image-01"
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4"

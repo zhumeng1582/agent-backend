@@ -383,7 +383,7 @@ async def text_to_speech(
                 "Authorization": f"Bearer {api_key}",
             },
             json={
-                "model": request.model or "speech-2.8-hd",
+                "model": request.model or settings.minimax_tts_model,
                 "text": request.text,
                 "stream": False,
                 "voice_setting": {
@@ -440,7 +440,7 @@ async def generate_image(
                 "Authorization": f"Bearer {api_key}",
             },
             json={
-                "model": request.model or "image-01",
+                "model": request.model or settings.minimax_image_model,
                 "prompt": request.prompt,
                 "aspect_ratio": request.aspect_ratio or "1:1",
                 "response_format": "url",
