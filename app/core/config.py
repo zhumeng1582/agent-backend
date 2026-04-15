@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4"
 
+    # Alibaba Cloud (SMS & Email)
+    alibaba_access_key_id: str = ""
+    alibaba_access_key_secret: str = ""
+    alibaba_sms_sign_name: str = ""
+    alibaba_sms_template_code: str = ""
+    alibaba_email_domain: str = ""
+    alibaba_email_account: str = ""
+    alibaba_email_account_name: str = ""
+
     class Config:
         env_file = ".env"
         extra = "allow"

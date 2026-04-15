@@ -17,6 +17,7 @@ from app.core.security import (
     get_current_user,
 )
 from app.core.config import get_settings
+from app.core.aliyun_notification import aliyun_notification
 from app.models.user import User, RefreshToken, SMSCode, UserOAuth
 from app.schemas.user import (
     UserCreate,
@@ -145,17 +146,13 @@ async def send_sms_code(
     background_tasks: BackgroundTasks,
 ):
     """Send SMS verification code to phone number"""
-    code = "123456"  # Fixed code for testing
+    code = generate_sms_code()
     store_sms_code(request.phone, code)
 
-    # TODO: Integrate with actual SMS service (e.g., Tencent Cloud, Alibaba Cloud)
-    # For now, just log the code
-    print(f"[SMS] Code for {request.phone}: {code}")
+    # Send SMS via Alibaba Cloud
+    aliyun_notification.send_sms(request.phone, code)
 
-    # In production, send SMS via background task:
-    # background_tasks.add_task(send_sms_via_provider, request.phone, code)
-
-    return {"message": "Verification code sent", "code": code}  # Remove code in production!
+    return {"message": "Verification code sent"}
 
 
 @router.post("/phone/register", response_model=UserResponse)
@@ -564,17 +561,15 @@ async def forgot_password(
         return {"message": "If the account exists, a reset code has been sent"}
 
     # Generate and store reset code
-    code = "123456"  # Fixed code for testing
+    code = generate_sms_code()
     store_reset_code(identifier, code)
 
-    # For email, we would send an actual email. For now, log it like SMS
+    # Send notification via Alibaba Cloud
     if request.email:
-        print(f"[Password Reset] Code for {request.email}: {code}")
-        # TODO: Send actual email
-        return {"message": "If the account exists, a reset code has been sent"}
+        aliyun_notification.send_email(request.email, code)
+    elif request.phone:
+        aliyun_notification.send_sms(request.phone, code)
 
-    # For phone, same as SMS
-    print(f"[Password Reset] Code for {request.phone}: {code}")
     return {"message": "If the account exists, a reset code has been sent"}
 
 
