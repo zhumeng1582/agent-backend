@@ -115,9 +115,11 @@ async def update_conversation(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Conversation).where(
+        select(Conversation)
+        .where(
             Conversation.id == conversation_id, Conversation.user_id == current_user.id
         )
+        .options(selectinload(Conversation.messages))
     )
     conversation = result.scalar_one_or_none()
 
