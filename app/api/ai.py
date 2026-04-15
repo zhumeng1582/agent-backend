@@ -56,45 +56,59 @@ def decrypt_api_key(encrypted: str) -> str:
 
 
 async def call_minimax_api(messages: List[dict], model: str, api_key: str, base_url: str = "https://api.minimaxi.com/v1") -> dict:
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
-            f"{base_url}/text/chatcompletion_v2",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-            },
-        )
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"AI API error: {response.text}",
+    logger.info(f"[call_minimax_api] Calling minimax API: model={model}, base_url={base_url}")
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{base_url}/text/chatcompletion_v2",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                },
+                json={
+                    "model": model,
+                    "messages": messages,
+                },
             )
-        return response.json()
+            logger.info(f"[call_minimax_api] Response status: {response.status_code}")
+            if response.status_code != 200:
+                logger.error(f"[call_minimax_api] Error response: {response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"AI API error: {response.text}",
+                )
+            return response.json()
+    except Exception as e:
+        logger.error(f"[call_minimax_api] Exception: {type(e).__name__}: {e}")
+        raise
 
 
 async def call_openai_api(messages: List[dict], model: str, api_key: str) -> dict:
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-            },
-        )
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"AI API error: {response.text}",
+    logger.info(f"[call_openai_api] Calling OpenAI API: model={model}")
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                },
+                json={
+                    "model": model,
+                    "messages": messages,
+                },
             )
-        return response.json()
+            logger.info(f"[call_openai_api] Response status: {response.status_code}")
+            if response.status_code != 200:
+                logger.error(f"[call_openai_api] Error response: {response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"AI API error: {response.text}",
+                )
+            return response.json()
+    except Exception as e:
+        logger.error(f"[call_openai_api] Exception: {type(e).__name__}: {e}")
+        raise
 
 
 @router.get("/providers", response_model=List[AIProviderResponse])
@@ -224,6 +238,9 @@ async def chat_in_conversation(
     for new_msg in request.messages:
         messages.append(new_msg.model_dump())
 
+    logger.info(f"[POST /ai/chat/{conversation_id}] Calling {provider.provider_type} provider with {len(messages)} messages")
+    logger.debug(f"[POST /ai/chat/{conversation_id}] Messages: {messages}")
+
     # Call provider
     if provider.provider_type == "minimax":
         result = await call_minimax_api(messages, request.model or provider.model_name, api_key, provider.base_url)
@@ -235,6 +252,8 @@ async def chat_in_conversation(
             detail=f"Provider type {provider.provider_type} not supported",
         )
 
+    logger.info(f"[POST /ai/chat/{conversation_id}] Raw response: {result}")
+
     # Parse response
     choices = result.get("choices", [])
     if choices:
@@ -242,6 +261,8 @@ async def chat_in_conversation(
         content = message.get("content", "")
         reasoning = message.get("reasoning_content")
         usage = result.get("usage")
+
+        logger.info(f"[POST /ai/chat/{conversation_id}] AI response content length: {len(content) if content else 0}")
 
         # Save AI response to conversation
         ai_message = Message(
@@ -261,6 +282,7 @@ async def chat_in_conversation(
             usage=usage,
         )
 
+    logger.warning(f"[POST /ai/chat/{conversation_id}] No choices in AI response, full response: {result}")
     raise HTTPException(
         status_code=status.HTTP_502_BAD_GATEWAY,
         detail="Invalid response from AI provider",
