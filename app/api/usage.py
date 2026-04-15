@@ -41,21 +41,23 @@ async def get_usage(
     )
     usage = result.scalar_one_or_none()
 
+    daily_limit = current_user.daily_limit
+
     if not usage:
         # Return default values if no usage record exists
         return UsageResponse(
             chat_count=0,
             tokens_used=0,
-            remaining=100,
-            limit=100,
+            remaining=daily_limit,
+            limit=daily_limit,
         )
 
-    remaining = max(0, 100 - usage.chat_count)
+    remaining = max(0, daily_limit - usage.chat_count)
     return UsageResponse(
         chat_count=usage.chat_count,
         tokens_used=usage.tokens_used,
         remaining=remaining,
-        limit=100,
+        limit=daily_limit,
     )
 
 
@@ -95,10 +97,11 @@ async def update_usage(
     await db.commit()
     await db.refresh(usage)
 
-    remaining = max(0, 100 - usage.chat_count)
+    daily_limit = current_user.daily_limit
+    remaining = max(0, daily_limit - usage.chat_count)
     return UsageResponse(
         chat_count=usage.chat_count,
         tokens_used=usage.tokens_used,
         remaining=remaining,
-        limit=100,
+        limit=daily_limit,
     )

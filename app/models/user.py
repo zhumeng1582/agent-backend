@@ -18,6 +18,8 @@ class User(Base):
     avatar_url = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    tier = Column(String(20), default="free")  # free, basic, premium
+    daily_limit = Column(Integer, default=100)  # Daily chat limit
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
