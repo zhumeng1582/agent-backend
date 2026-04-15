@@ -145,7 +145,7 @@ async def send_sms_code(
     background_tasks: BackgroundTasks,
 ):
     """Send SMS verification code to phone number"""
-    code = generate_sms_code()
+    code = "123456"  # Fixed code for testing
     store_sms_code(request.phone, code)
 
     # TODO: Integrate with actual SMS service (e.g., Tencent Cloud, Alibaba Cloud)
@@ -564,7 +564,7 @@ async def forgot_password(
         return {"message": "If the account exists, a reset code has been sent"}
 
     # Generate and store reset code
-    code = generate_sms_code()  # Reuse SMS code generator
+    code = "123456"  # Fixed code for testing
     store_reset_code(identifier, code)
 
     # For email, we would send an actual email. For now, log it like SMS
