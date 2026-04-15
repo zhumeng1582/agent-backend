@@ -215,11 +215,17 @@ async def create_message(
         )
     )
     conversation = result.scalar_one_or_none()
+
+    # If conversation doesn't exist, auto-create it (handles temp chat IDs from client)
     if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
+        logger.info(f"[POST /conversations/{conversation_id}/messages] Conversation not found, auto-creating")
+        conversation = Conversation(
+            id=conversation_id,
+            user_id=current_user.id,
+            title="新聊天",
         )
+        db.add(conversation)
+        await db.flush()  # Get the conversation ID without committing
 
     message = Message(
         conversation_id=conversation_id,

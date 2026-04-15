@@ -178,12 +178,17 @@ async def chat_in_conversation(
         )
     )
     conversation = result.scalar_one_or_none()
+
+    # If conversation doesn't exist, auto-create it (handles temp chat IDs from client)
     if not conversation:
-        logger.warning(f"[POST /ai/chat/{conversation_id}] Conversation not found for user {current_user.id}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
+        logger.info(f"[POST /ai/chat/{conversation_id}] Conversation not found, auto-creating")
+        conversation = Conversation(
+            id=conversation_id,
+            user_id=current_user.id,
+            title="新聊天",
         )
+        db.add(conversation)
+        await db.flush()
 
     # Get provider
     provider = await get_default_provider(db)
