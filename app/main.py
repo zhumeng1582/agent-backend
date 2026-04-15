@@ -22,6 +22,24 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Agent Backend API...")
     await init_db()
+
+    # Log AI configuration status
+    if settings.minimax_api_key:
+        logger.info(f"[AI Config] MiniMax API Key: ****{settings.minimax_api_key[-4:]}")
+        logger.info(f"[AI Config] MiniMax Base URL: {settings.minimax_base_url}")
+        logger.info(f"[AI Config] MiniMax Model: {settings.minimax_model}")
+    else:
+        logger.warning("[AI Config] MiniMax API Key not configured in .env")
+
+    if settings.openai_api_key:
+        logger.info(f"[AI Config] OpenAI API Key: ****{settings.openai_api_key[-4:]}")
+        logger.info(f"[AI Config] OpenAI Model: {settings.openai_model}")
+    else:
+        logger.warning("[AI Config] OpenAI API Key not configured in .env")
+
+    if not settings.minimax_api_key and not settings.openai_api_key:
+        logger.error("[AI Config] No AI provider configured! Set MINIMAX_API_KEY or OPENAI_API_KEY in .env")
+
     yield
     # Shutdown
     logger.info("Shutting down...")
