@@ -146,13 +146,11 @@ async def send_sms_code(
     background_tasks: BackgroundTasks,
 ):
     """Send SMS verification code to phone number"""
-    code = generate_sms_code()
+    code = "123456"  # TODO: Use Aliyun SMS in production
     store_sms_code(request.phone, code)
+    print(f"[SMS] Code for {request.phone}: {code}")
 
-    # Send SMS via Alibaba Cloud
-    aliyun_notification.send_sms(request.phone, code)
-
-    return {"message": "Verification code sent"}
+    return {"message": "Verification code sent", "code": code}
 
 
 @router.post("/phone/register", response_model=UserResponse)
@@ -561,14 +559,9 @@ async def forgot_password(
         return {"message": "If the account exists, a reset code has been sent"}
 
     # Generate and store reset code
-    code = generate_sms_code()
+    code = "123456"  # TODO: Use Aliyun SMS/Email in production
     store_reset_code(identifier, code)
-
-    # Send notification via Alibaba Cloud
-    if request.email:
-        aliyun_notification.send_email(request.email, code)
-    elif request.phone:
-        aliyun_notification.send_sms(request.phone, code)
+    print(f"[Password Reset] Code for {identifier}: {code}")
 
     return {"message": "If the account exists, a reset code has been sent"}
 
